@@ -1,12 +1,13 @@
 {
   "configurations": [
     {
-      "name": "ROS",
+      "name": "ROS Noetic",
       "includePath": [
-        "${workspaceFolder}/devel/include/**",
+        "${workspaceFolder}/devel/include",
         "${workspaceFolder}/src/**",
-        "/opt/ros/noetic/include/**",
-        "/usr/include/**"
+        "/opt/ros/noetic/include",
+        "/usr/include",
+        "/usr/include/eigen3"
       ],
       "defines": [],
       "compilerPath": "/usr/bin/g++",
@@ -17,4 +18,3 @@
   ],
   "version": 4
 }
-
