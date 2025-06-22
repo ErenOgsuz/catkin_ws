@@ -1,0 +1,2 @@
+rrt3d_planner:tree_visualizer:ws_kinematics:ws_odometry
+-DCATKIN_DEVEL_PREFIX=/home/ereno/catkin_ws/devel -DCMAKE_INSTALL_PREFIX=/home/ereno/catkin_ws/install -G Unix Makefiles

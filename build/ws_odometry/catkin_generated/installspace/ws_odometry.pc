@@ -1,0 +1,8 @@
+prefix=/home/ereno/catkin_ws/install
+
+Name: ws_odometry
+Description: Description of ws_odometry
+Version: 0.0.0
+Cflags: 
+Libs: -L${prefix}/lib 
+Requires: 
