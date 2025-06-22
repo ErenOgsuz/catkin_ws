@@ -1,0 +1,7 @@
+<library path="lib/librrt3d_planner">
+  <class name="rrt3d_planner/InformedRRT3D"
+         type="rrt3d_planner::InformedRRT3D"
+         base_class_type="nav_core::BaseGlobalPlanner">
+    <description>3D Informed RRT* Global Planner</description>
+  </class>
+</library>
