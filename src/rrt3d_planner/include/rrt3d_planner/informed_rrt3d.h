@@ -25,6 +25,7 @@ namespace rrt3d_planner
     struct Node
     {
         double x, y, z, yaw;
+        double yaw;
         double cost;
         std::shared_ptr<Node> parent;
         std::vector<std::shared_ptr<Node>> children;

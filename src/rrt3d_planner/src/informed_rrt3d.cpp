@@ -34,6 +34,10 @@ namespace rrt3d_planner
     nh_.param("min_altitude", min_altitude_, 0.2);
     nh_.param("max_altitude", max_altitude_, 5.0);
     nh_.param("consider_orientation", consider_orientation_, true);
+    nh_.param("max_yaw_rate", max_yaw_rate_, 1.0);   // rad/s
+    nh_.param("nominal_speed", nominal_speed_, 1.0); // m/s
+    nh_.param("yaw_weight", yaw_weight_, 0.3);       // cost function
+    nh_.param("informed_sampling", informed_sampling_, true);
 
     tree_pub_ = nh_.advertise<visualization_msgs::MarkerArray>("rrt_tree", 1);
     path_pub_ = nh_.advertise<nav_msgs::Path>("rrt_path_3d", 1);
@@ -70,8 +74,20 @@ namespace rrt3d_planner
     }
 
     nodes_.clear();
-    Node *start_node = new Node(start.pose.position.x, start.pose.position.y, start.pose.position.z);
-    Node *goal_node = new Node(goal.pose.position.x, goal.pose.position.y, goal.pose.position.z);
+
+    // Get yaw from quaternion
+    tf::Quaternion q;
+    tf::quaternionMsgToTF(start.pose.orientation, q);
+    double roll, pitch, yaw;
+    tf::Matrix3x3(q).getRPY(roll, pitch, yaw);
+
+    Node *start_node = new Node(start.pose.position.x, start.pose.position.y, start.pose.position.z, yaw);
+
+    // Repeat for goal
+    tf::quaternionMsgToTF(goal.pose.orientation, q);
+    tf::Matrix3x3(q).getRPY(roll, pitch, yaw);
+
+    Node *goal_node = new Node(goal.pose.position.x, goal.pose.position.y, goal.pose.position.z, yaw);
     nodes_.emplace_back(start_node);
 
     for (int i = 0; i < 1000; ++i)
@@ -133,7 +149,64 @@ namespace rrt3d_planner
     double x = origin_x_ + ((double)rand() / RAND_MAX) * costmap_->getSizeInMetersX();
     double y = origin_y_ + ((double)rand() / RAND_MAX) * costmap_->getSizeInMetersY();
     double z = min_altitude_ + ((double)rand() / RAND_MAX) * (max_altitude_ - min_altitude_);
-    return new Node(x, y, z);
+    double yaw = ((double)rand() / RAND_MAX) * 2 * M_PI - M_PI;
+    return new Node(x, y, z, yaw);
+  }
+
+  Node *InformedRRT3D::sampleInformedNode(Node *start, Node *goal, double c_best)
+  {
+    double c_min = distance(start, goal);
+    if (c_best == std::numeric_limits<double>::infinity() || c_best <= c_min)
+      return sampleRandomNode(); // fallback to uniform sampling
+
+    // Ellipse parameters
+    double a = c_best / 2.0; // semi-major axis
+    double c = c_min / 2.0;
+    double b = std::sqrt(a * a - c * c); // semi-minor axis
+
+    // Sample random point in unit ball
+    double phi = ((double)rand() / RAND_MAX) * 2 * M_PI;
+    double costheta = ((double)rand() / RAND_MAX) * 2.0 - 1.0;
+    double u = ((double)rand() / RAND_MAX);
+
+    double theta = std::acos(costheta);
+    double r = std::cbrt(u); // uniform volume
+
+    double x_ball = r * std::sin(theta) * std::cos(phi);
+    double y_ball = r * std::sin(theta) * std::sin(phi);
+    double z_ball = r * std::cos(theta);
+
+    // Transform unit ball to ellipsoid
+
+    Eigen::Vector3d start_pt(start->x, start->y, start->z);
+    Eigen::Vector3d goal_pt(goal->x, goal->y, goal->z);
+    Eigen::Vector3d center = (start_pt + goal_pt) / 2.0;
+    Eigen::Vector3d dir = (goal_pt - start_pt).normalized();
+
+    // Create basis using direction vector
+    Eigen::Matrix3d M;
+    Eigen::Vector3d z = dir;
+    Eigen::Vector3d x = z.unitOrthogonal(); // any vector orthogonal to z
+    Eigen::Vector3d y = z.cross(x);
+    M.col(0) = x;
+    M.col(1) = y;
+    M.col(2) = z;
+
+    Eigen::Vector3d D(b, b, a); // scale
+    Eigen::Vector3d sample = M * (D.asDiagonal() * Eigen::Vector3d(x_ball, y_ball, z_ball)) + center;
+
+    double yaw = ((double)rand() / RAND_MAX) * 2 * M_PI - M_PI;
+
+    return new Node(sample.x(), sample.y(), sample.z(), yaw);
+  }
+
+  double InformedRRT3D::normalizeAngle(double angle)
+  {
+    while (angle > M_PI)
+      angle -= 2 * M_PI;
+    while (angle < -M_PI)
+      angle += 2 * M_PI;
+    return angle;
   }
 
   Node *InformedRRT3D::steer(Node *from, Node *to)
@@ -142,17 +215,37 @@ namespace rrt3d_planner
     double dy = to->y - from->y;
     double dz = to->z - from->z;
     double dist = std::sqrt(dx * dx + dy * dy + dz * dz);
+
+    double new_x, new_y, new_z;
     if (dist <= step_size_)
-      return new Node(to->x, to->y, to->z);
-    double scale = step_size_ / dist;
-    return new Node(from->x + dx * scale, from->y + dy * scale, from->z + dz * scale);
+    {
+      new_x = to->x;
+      new_y = to->y;
+      new_z = to->z;
+    }
+    else
+    {
+      double scale = step_size_ / dist;
+      new_x = from->x + dx * scale;
+      new_y = from->y + dy * scale;
+      new_z = from->z + dz * scale;
+    }
+
+    // Interpolate yaw (handling wrap-around)
+    double dyaw = normalizeAngle(to->yaw - from->yaw);
+    double yaw_step = std::min(dyaw, max_yaw_rate_ * (step_size_ / nominal_speed_));
+    double new_yaw = normalizeAngle(from->yaw + yaw_step);
+
+    return new Node(new_x, new_y, new_z, new_yaw);
   }
 
   double InformedRRT3D::distance(Node *a, Node *b)
   {
-    return std::sqrt((a->x - b->x) * (a->x - b->x) +
-                     (a->y - b->y) * (a->y - b->y) +
-                     (a->z - b->z) * (a->z - b->z));
+    double dx = a->x - b->x;
+    double dy = a->y - b->y;
+    double dz = a->z - b->z;
+    double dyaw = normalizeAngle(a->yaw - b->yaw);
+    return std::sqrt(dx * dx + dy * dy + dz * dz) + yaw_weight_ * std::abs(dyaw);
   }
 
   bool InformedRRT3D::isFree(double x, double y, double z)
@@ -208,8 +301,14 @@ namespace rrt3d_planner
       pose.pose.position.x = n->x;
       pose.pose.position.y = n->y;
       pose.pose.position.z = n->z;
+
+      // Convert yaw to quaternion for pose.orientation
+      tf::Quaternion q = tf::createQuaternionFromRPY(0, 0, n->yaw);
+      tf::quaternionTFToMsg(q, pose.pose.orientation);
+
       ros_path.poses.push_back(pose);
     }
+
     path_pub_.publish(ros_path);
   }
 
