@@ -17,10 +17,35 @@
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <vector>
 #include <memory>
+#include "nanoflann.hpp"
 #include <random>
 
 namespace rrt3d_planner
 {
+    struct PointCloud
+    {
+        const std::vector<std::shared_ptr<Node>> *nodes;
+
+        inline size_t kdtree_get_point_count() const
+        {
+            return nodes->size();
+        }
+
+        inline double kdtree_get_pt(const size_t idx, const size_t dim) const
+        {
+            const auto &n = (*nodes)[idx];
+            if (dim == 0)
+                return n->x;
+            else if (dim == 1)
+                return n->y;
+            else
+                return n->z;
+        }
+
+        // Not implementing bounding box
+        template <class BBOX>
+        bool kdtree_get_bbox(BBOX &) const { return false; }
+    };
 
     struct Node
     {
@@ -44,6 +69,18 @@ namespace rrt3d_planner
                       std::vector<geometry_msgs::PoseStamped> &plan) override;
 
     private:
+        using KDTree = nanoflann::KDTreeSingleIndexAdaptor<
+            nanoflann::L2_Simple_Adaptor<double, PointCloud>,
+            PointCloud,
+            3 // dimensionality: x, y, z
+            >;
+
+        PointCloud point_cloud_;          // Wrapper around nodes_
+        std::unique_ptr<KDTree> kd_tree_; // The actual KD-tree
+
+        size_t last_kdtree_build_size_ = 0;    // Track when to rebuild
+        size_t kd_tree_rebuild_interval_ = 50; // Rebuild every N new nodes
+
         ros::NodeHandle nh_;
         costmap_2d::Costmap2DROS *costmap_ros_;
         costmap_2d::Costmap2D *costmap_;

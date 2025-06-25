@@ -1,6 +1,7 @@
 // informed_rrt3d.cpp
 
 #include "rrt3d_planner/informed_rrt3d.h"
+#include "rrt3d_planner/nanoflann.hpp"
 #include <pluginlib/class_list_macros.h>
 #include <angles/angles.h>
 #include <geometry_msgs/PointStamped.h>
@@ -87,14 +88,15 @@ namespace rrt3d_planner
     double roll, pitch, yaw;
     tf::Matrix3x3(q).getRPY(roll, pitch, yaw);
 
-    Node *start_node = new Node(start.pose.position.x, start.pose.position.y, start.pose.position.z, yaw);
+    auto start_node = std::make_shared<Node>(start.pose.position.x, start.pose.position.y, start.pose.position.z, yaw);
 
     // Repeat for goal
     tf::quaternionMsgToTF(goal.pose.orientation, q);
     tf::Matrix3x3(q).getRPY(roll, pitch, yaw);
 
-    Node *goal_node = new Node(goal.pose.position.x, goal.pose.position.y, goal.pose.position.z, yaw);
+    auto goal_node = std::make_shared<Node>(goal.pose.position.x, goal.pose.position.y, goal.pose.position.z, yaw);
     nodes_.emplace_back(start_node);
+    buildKDTree();
 
     for (int i = 0; i < 1000; ++i)
     {
@@ -107,25 +109,32 @@ namespace rrt3d_planner
       if (!rand)
         continue;
 
-      Node *nearest = start_node;
-      double min_dist = distance(rand, nearest);
-      for (const auto &node : nodes_)
+      // In logarithmic time this will find the nearest/closest node
+      if (!kd_tree_)
       {
-        double d = distance(rand, node.get());
-        if (d < min_dist)
-        {
-          nearest = node.get();
-          min_dist = d;
-        }
+        ROS_WARN("KD-tree not yet built; skipping sample");
+        continue;
       }
 
+      std::array<double, 3> query_pt = {rand->x, rand->y, rand->z};
+
+      size_t nearest_idx;
+      double out_dist_sqr;
+      nanoflann::KNNResultSet<double> resultSet(1);
+      resultSet.init(&nearest_idx, &out_dist_sqr);
+      kd_tree_->findNeighbors(resultSet, &query_pt[0], nanoflann::SearchParams());
+
+      std::shared_ptr<Node> nearest = nodes_[nearest_idx];
+
+      // Add new node
       Node *new_node = steer(nearest, rand);
       if (isValid(new_node) && collisionFree(nearest, new_node))
       {
         new_node->parent = nearest;
         new_node->cost = nearest->cost + distance(nearest, new_node);
         nearest->children.push_back(new_node);
-        nodes_.emplace_back(new_node);
+        nodes_.push_back(new_node); // standard C++ vector push
+        buildKDTree();              // rebuild tree if needed
 
         if (distance(new_node, goal_node) < goal_tolerance_)
         {
@@ -135,7 +144,9 @@ namespace rrt3d_planner
           if (goal_node->cost < best_cost_)
             best_cost_ = goal_node->cost;
 
-          nodes_.emplace_back(goal_node);
+          nodes_.push_back(goal_node);
+          buildKDTree(); // in case more planning continues
+
           break;
         }
       }
@@ -260,6 +271,18 @@ namespace rrt3d_planner
     double yaw = ((double)rand() / RAND_MAX) * 2 * M_PI - M_PI;
 
     return new Node(sample.x(), sample.y(), sample.z(), yaw);
+  }
+
+  void InformedRRT3D::buildKDTree()
+  {
+    if (nodes_.size() < 2 || (nodes_.size() - last_kdtree_build_size_) < kd_tree_rebuild_interval_)
+      return;
+
+    point_cloud_.nodes = &nodes_;
+    kd_tree_ = std::make_unique<KDTree>(3, point_cloud_, nanoflann::KDTreeSingleIndexAdaptorParams(10));
+    kd_tree_->buildIndex();
+    last_kdtree_build_size_ = nodes_.size();
+    ROS_DEBUG("KD-Tree rebuilt with %zu nodes", nodes_.size());
   }
 
   double InformedRRT3D::normalizeAngle(double angle)
