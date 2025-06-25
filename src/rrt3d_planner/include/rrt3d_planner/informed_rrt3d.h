@@ -66,6 +66,7 @@ namespace rrt3d_planner
         double min_altitude_;
         double map_resolution_;
         double safety_radius_;
+        double best_cost_;
 
         std::default_random_engine rng_;
 

@@ -12,10 +12,14 @@ PLUGINLIB_EXPORT_CLASS(rrt3d_planner::InformedRRT3D, nav_core::BaseGlobalPlanner
 namespace rrt3d_planner
 {
 
-  InformedRRT3D::InformedRRT3D() {}
+  InformedRRT3D::InformedRRT3D()
+  {
+    best_cost_ = std::numeric_limits<double>::infinity();
+  }
 
   InformedRRT3D::InformedRRT3D(std::string name, costmap_2d::Costmap2DROS *costmap_ros)
   {
+    best_cost_ = std::numeric_limits<double>::infinity();
     initialize(name, costmap_ros);
   }
 
@@ -67,6 +71,8 @@ namespace rrt3d_planner
                                const geometry_msgs::PoseStamped &goal,
                                std::vector<geometry_msgs::PoseStamped> &plan)
   {
+    best_cost_ = std::numeric_limits<double>::infinity();
+
     if (!costmap_ || !octree_)
     {
       ROS_WARN("Costmap or Octomap not initialized");
@@ -92,7 +98,12 @@ namespace rrt3d_planner
 
     for (int i = 0; i < 1000; ++i)
     {
-      Node *rand = sampleRandomNode();
+      Node *rand;
+      if (informed_sampling_ && best_cost_ < std::numeric_limits<double>::infinity())
+        rand = sampleInformedNode(start_node, goal_node, best_cost_);
+      else
+        rand = sampleRandomNode();
+
       if (!rand)
         continue;
 
@@ -120,6 +131,10 @@ namespace rrt3d_planner
         {
           goal_node->parent = new_node;
           goal_node->cost = new_node->cost + distance(new_node, goal_node);
+
+          if (goal_node->cost < best_cost_)
+            best_cost_ = goal_node->cost;
+
           nodes_.emplace_back(goal_node);
           break;
         }
@@ -151,6 +166,53 @@ namespace rrt3d_planner
     double z = min_altitude_ + ((double)rand() / RAND_MAX) * (max_altitude_ - min_altitude_);
     double yaw = ((double)rand() / RAND_MAX) * 2 * M_PI - M_PI;
     return new Node(x, y, z, yaw);
+  }
+
+  Node *InformedRRT3D::sampleInformedNode(Node *start, Node *goal, double c_best)
+  {
+    double c_min = distance(start, goal);
+    if (c_best == std::numeric_limits<double>::infinity() || c_best <= c_min)
+      return sampleRandomNode(); // fallback to uniform sampling
+
+    // Ellipse parameters
+    double a = c_best / 2.0; // semi-major axis
+    double c = c_min / 2.0;
+    double b = std::sqrt(a * a - c * c); // semi-minor axis
+
+    // Sample random point in unit ball
+    double phi = ((double)rand() / RAND_MAX) * 2 * M_PI;
+    double costheta = ((double)rand() / RAND_MAX) * 2.0 - 1.0;
+    double u = ((double)rand() / RAND_MAX);
+
+    double theta = std::acos(costheta);
+    double r = std::cbrt(u); // uniform volume
+
+    double x_ball = r * std::sin(theta) * std::cos(phi);
+    double y_ball = r * std::sin(theta) * std::sin(phi);
+    double z_ball = r * std::cos(theta);
+
+    // Transform unit ball to ellipsoid
+
+    Eigen::Vector3d start_pt(start->x, start->y, start->z);
+    Eigen::Vector3d goal_pt(goal->x, goal->y, goal->z);
+    Eigen::Vector3d center = (start_pt + goal_pt) / 2.0;
+    Eigen::Vector3d dir = (goal_pt - start_pt).normalized();
+
+    // Create basis using direction vector
+    Eigen::Matrix3d M;
+    Eigen::Vector3d z = dir;
+    Eigen::Vector3d x = z.unitOrthogonal(); // any vector orthogonal to z
+    Eigen::Vector3d y = z.cross(x);
+    M.col(0) = x;
+    M.col(1) = y;
+    M.col(2) = z;
+
+    Eigen::Vector3d D(b, b, a); // scale
+    Eigen::Vector3d sample = M * (D.asDiagonal() * Eigen::Vector3d(x_ball, y_ball, z_ball)) + center;
+
+    double yaw = ((double)rand() / RAND_MAX) * 2 * M_PI - M_PI;
+
+    return new Node(sample.x(), sample.y(), sample.z(), yaw);
   }
 
   Node *InformedRRT3D::sampleInformedNode(Node *start, Node *goal, double c_best)
