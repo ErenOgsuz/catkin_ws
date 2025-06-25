@@ -113,6 +113,10 @@ namespace rrt3d_planner
         bool collisionFree(const std::shared_ptr<Node> &from, const std::shared_ptr<Node> &to);
         double distance(const std::shared_ptr<Node> &n1, const std::shared_ptr<Node> &n2);
         void visualizeTree();
+        double getRewireRadius() const;
+        void rewireTree(const std::shared_ptr<Node> &new_node,
+                        const std::vector<std::shared_ptr<Node>> &near_nodes);
+        void propagateCostToChildren(const std::shared_ptr<Node> &node);
         nav_msgs::Path createPathMsg(const std::vector<std::shared_ptr<Node>> &path, const std::string &frame_id);
         std::vector<std::shared_ptr<Node>> extractPath(const std::shared_ptr<Node> &goal);
     };

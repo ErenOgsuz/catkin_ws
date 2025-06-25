@@ -136,6 +136,23 @@ namespace rrt3d_planner
         nodes_.push_back(new_node); // standard C++ vector push
         buildKDTree();              // rebuild tree if needed
 
+        // Get nearby nodes for rewiring
+        double radius = getRewireRadius();
+        std::vector<std::shared_ptr<Node>> near_nodes;
+
+        // Use KD-tree to find neighbors
+        std::vector<std::pair<size_t, double>> ret_matches;
+        nanoflann::SearchParams params;
+        kd_tree_->radiusSearch(&query_pt[0], radius * radius, ret_matches, params);
+
+        for (const auto &match : ret_matches)
+        {
+          near_nodes.push_back(nodes_[match.first]);
+        }
+
+        // Now rewire them
+        rewireTree(new_node, near_nodes);
+
         if (distance(new_node, goal_node) < goal_tolerance_)
         {
           goal_node->parent = new_node;
@@ -283,6 +300,58 @@ namespace rrt3d_planner
     kd_tree_->buildIndex();
     last_kdtree_build_size_ = nodes_.size();
     ROS_DEBUG("KD-Tree rebuilt with %zu nodes", nodes_.size());
+  }
+
+  double InformedRRT3D::getRewireRadius() const
+  {
+    if (nodes_.size() <= 1)
+      return rewire_radius_; // fallback
+
+    double gamma = 2.0 * std::pow(1.0 + 1.0 / 3.0, 1.0 / 3.0);
+    double eta = std::pow(std::log(nodes_.size()) / nodes_.size(), 1.0 / 3.0);
+    return std::min(rewire_radius_, gamma * eta);
+  }
+
+  void InformedRRT3D::rewireTree(const std::shared_ptr<Node> &new_node,
+                                 const std::vector<std::shared_ptr<Node>> &near_nodes)
+  {
+    for (auto &near_node : near_nodes)
+    {
+      if (near_node == new_node->parent)
+        continue;
+
+      double new_cost = new_node->cost + distance(new_node, near_node);
+      if (new_cost < near_node->cost && collisionFree(new_node, near_node))
+      {
+        // Remove from old parent's children
+        if (near_node->parent)
+        {
+          auto &siblings = near_node->parent->children;
+          siblings.erase(std::remove(siblings.begin(), siblings.end(), near_node), siblings.end());
+        }
+
+        // Update parent and cost
+        near_node->parent = new_node;
+        near_node->cost = new_cost;
+        new_node->children.push_back(near_node);
+
+        propagateCostToChildren(near_node);
+      }
+    }
+  }
+
+  void InformedRRT3D::propagateCostToChildren(const std::shared_ptr<Node> &node)
+  {
+    for (auto &child : node->children)
+    {
+      double old_cost = child->cost;
+      child->cost = node->cost + distance(node, child);
+
+      if (std::abs(child->cost - old_cost) > 1e-6)
+      {
+        propagateCostToChildren(child); // recursive
+      }
+    }
   }
 
   double InformedRRT3D::normalizeAngle(double angle)
