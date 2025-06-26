@@ -95,6 +95,8 @@ namespace rrt3d_planner
 
         std::vector<std::shared_ptr<Node>> nodes_;
 
+        std::string octomap_frame_;
+
         double step_size_;
         double goal_tolerance_;
         double rewire_radius_;

@@ -474,6 +474,23 @@ namespace rrt3d_planner
     if (!octree_)
       return true;
 
+    geometry_msgs::PointStamped input, transformed;
+    input.header.stamp = ros::Time(0);                        // latest
+    input.header.frame_id = costmap_ros_->getGlobalFrameID(); // usually "map"
+    input.point.x = x;
+    input.point.y = y;
+    input.point.z = z;
+
+    try
+    {
+      tf_buffer_.transform(input, transformed, octomap_frame_, ros::Duration(0.1));
+    }
+    catch (tf2::TransformException &ex)
+    {
+      ROS_WARN_THROTTLE(2.0, "TF transform failed: %s", ex.what());
+      return false;
+    }
+
     std::vector<std::tuple<double, double, double>> offsets = {
         {0, 0, 0},
         {safety_radius_, 0, 0},
@@ -485,7 +502,10 @@ namespace rrt3d_planner
 
     for (const auto &[dx, dy, dz] : offsets)
     {
-      octomap::point3d pt(x + dx, y + dy, z + dz);
+      octomap::point3d pt(transformed.point.x + dx,
+                          transformed.point.y + dy,
+                          transformed.point.z + dz);
+
       octomap::OcTreeNode *node = octree_->search(pt);
 
       if (node && octree_->isNodeOccupied(node))
