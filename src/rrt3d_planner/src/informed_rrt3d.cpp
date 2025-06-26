@@ -6,6 +6,9 @@
 #include <angles/angles.h>
 #include <geometry_msgs/PointStamped.h>
 #include <tf/transform_datatypes.h>
+#include <pcl_conversions/pcl_conversions.h>
+#include <pcl/point_types.h>
+#include <pcl_ros/point_cloud.h>
 #include <random>
 
 PLUGINLIB_EXPORT_CLASS(rrt3d_planner::InformedRRT3D, nav_core::BaseGlobalPlanner)
@@ -47,11 +50,24 @@ namespace rrt3d_planner
     nh_.param("safety_radius", safety_radius_, 0.3);
     nh_.param("lethal_cost_threshold", lethal_cost_threshold_, 50);
 
+    cloud_sub_ = nh_.subscribe<sensor_msgs::PointCloud2>(
+        "/rtabmap/cloud_map", 1, &InformedRRT3D::cloudCallback, this);
+
     tree_pub_ = nh_.advertise<visualization_msgs::MarkerArray>("rrt_tree", 1);
     path_pub_ = nh_.advertise<nav_msgs::Path>("rrt_path_3d", 1);
     octomap_sub_ = nh_.subscribe("/rtabmap/octomap_binary", 1, &InformedRRT3D::octomapCallback, this);
 
     ROS_INFO("InformedRRT3D planner initialized");
+  }
+
+  void InformedRRT3D::cloudCallback(const sensor_msgs::PointCloud2::ConstPtr &msg)
+  {
+    size_t num_points = msg->width * msg->height;
+    ROS_DEBUG_STREAM_THROTTLE(2.0, "Received PointCloud2 with " << num_points << " points.");
+
+    // You can later convert and use these points
+    // pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
+    // pcl::fromROSMsg(*msg, *cloud);
   }
 
   void InformedRRT3D::octomapCallback(const octomap_msgs::OctomapConstPtr &msg)

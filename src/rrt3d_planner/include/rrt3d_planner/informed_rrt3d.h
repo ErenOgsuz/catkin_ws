@@ -15,6 +15,10 @@
 #include <tf2_ros/transform_listener.h>
 #include <tf2_ros/buffer.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <sensor_msgs/PointCloud2.h>
+#include <pcl_conversions/pcl_conversions.h>
+#include <pcl/point_types.h>
+#include <pcl_ros/point_cloud.h>
 #include <vector>
 #include <memory>
 #include "nanoflann.hpp"
@@ -90,6 +94,8 @@ namespace rrt3d_planner
         tf2_ros::Buffer tf_buffer_;
         tf2_ros::TransformListener tf_listener_;
 
+        ros::Subscriber cloud_sub_;
+
         ros::Publisher path_pub_;
         ros::Publisher tree_pub_;
 
@@ -122,6 +128,8 @@ namespace rrt3d_planner
         void rewireTree(const std::shared_ptr<Node> &new_node,
                         const std::vector<std::shared_ptr<Node>> &near_nodes);
         void propagateCostToChildren(const std::shared_ptr<Node> &node);
+        void cloudCallback(const sensor_msgs::PointCloud2::ConstPtr &msg);
+
         std::vector<std::shared_ptr<Node>> smoothPath(const std::vector<std::shared_ptr<Node>> &path);
         nav_msgs::Path createPathMsg(const std::vector<std::shared_ptr<Node>> &path, const std::string &frame_id);
         std::vector<std::shared_ptr<Node>> extractPath(const std::shared_ptr<Node> &goal);
