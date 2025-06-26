@@ -71,16 +71,59 @@ namespace rrt3d_planner
   {
     if (!msg)
       return;
+
+    // Store target frame
+    std::string new_frame = msg->header.frame_id;
+
+    // Check TF availability before accepting frame
+    const int max_retries = 3;
+    bool tf_available = false;
+
+    for (int i = 0; i < max_retries; ++i)
+    {
+      if (tf_buffer_.canTransform(costmap_ros_->getGlobalFrameID(), new_frame, ros::Time(0), ros::Duration(0.2)))
+      {
+        tf_available = true;
+        break;
+      }
+      else
+      {
+        ROS_WARN_THROTTLE(2.0, "TF not yet available from %s to %s (attempt %d/%d)",
+                          new_frame.c_str(),
+                          costmap_ros_->getGlobalFrameID().c_str(),
+                          i + 1,
+                          max_retries);
+        ros::Duration(0.1).sleep();
+      }
+    }
+
+    if (!tf_available)
+    {
+      ROS_ERROR_THROTTLE(5.0, "Octomap frame '%s' not TF-connected to global frame '%s'. Skipping update.",
+                         new_frame.c_str(), costmap_ros_->getGlobalFrameID().c_str());
+      return;
+    }
+
+    // Load octree
     octomap::AbstractOcTree *tree = octomap_msgs::binaryMsgToMap(*msg);
     if (tree)
     {
-      octree_.reset(dynamic_cast<octomap::OcTree *>(tree));
-      if (octree_)
+      std::shared_ptr<octomap::OcTree> converted(dynamic_cast<octomap::OcTree *>(tree));
+      if (converted)
       {
+        octree_ = converted;
         octomap_resolution_ = octree_->getResolution();
-        octomap_frame_ = msg->header.frame_id;
-        ROS_INFO("Octomap updated: resolution = %.2f", octomap_resolution_);
+        octomap_frame_ = new_frame;
+        ROS_INFO("Octomap updated: resolution = %.2f, frame = %s", octomap_resolution_, octomap_frame_.c_str());
       }
+      else
+      {
+        ROS_ERROR("Failed to cast AbstractOcTree to OcTree.");
+      }
+    }
+    else
+    {
+      ROS_ERROR("Failed to deserialize Octomap message.");
     }
   }
 
