@@ -104,6 +104,8 @@ namespace rrt3d_planner
         double map_resolution_;
         double safety_radius_;
         double best_cost_;
+        bool adaptive_radius_;
+        double safety_radius_;
 
         std::default_random_engine rng_;
 

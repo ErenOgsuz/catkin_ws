@@ -44,6 +44,7 @@ namespace rrt3d_planner
     nh_.param("yaw_weight", yaw_weight_, 0.3);       // cost function
     nh_.param("informed_sampling", informed_sampling_, true);
     nh_.param("adaptive_radius", adaptive_radius_, true); // default = true
+    nh_.param("safety_radius", safety_radius_, 0.3);
 
     tree_pub_ = nh_.advertise<visualization_msgs::MarkerArray>("rrt_tree", 1);
     path_pub_ = nh_.advertise<nav_msgs::Path>("rrt_path_3d", 1);
@@ -462,9 +463,35 @@ namespace rrt3d_planner
     return !octree_->isNodeOccupied(node);
   }
 
+  bool InformedRRT3D::isFree3D(double x, double y, double z)
+  {
+    if (!octree_)
+      return true;
+
+    std::vector<std::tuple<double, double, double>> offsets = {
+        {0, 0, 0},
+        {safety_radius_, 0, 0},
+        {-safety_radius_, 0, 0},
+        {0, safety_radius_, 0},
+        {0, -safety_radius_, 0},
+        {0, 0, safety_radius_},
+        {0, 0, -safety_radius_}};
+
+    for (const auto &[dx, dy, dz] : offsets)
+    {
+      octomap::point3d pt(x + dx, y + dy, z + dz);
+      octomap::OcTreeNode *node = octree_->search(pt);
+
+      if (node && octree_->isNodeOccupied(node))
+        return false;
+    }
+
+    return true;
+  }
+
   bool InformedRRT3D::isValid(Node *node)
   {
-    return isFree(node->x, node->y, node->z);
+    return isFree3D(node->x, node->y, node->z);
   }
 
   bool InformedRRT3D::collisionFree(Node *from, Node *to)
@@ -475,7 +502,7 @@ namespace rrt3d_planner
       double x = from->x + (to->x - from->x) * i / steps;
       double y = from->y + (to->y - from->y) * i / steps;
       double z = from->z + (to->z - from->z) * i / steps;
-      if (!isFree(x, y, z))
+      if (!isFree3D(x, y, z))
         return false;
     }
     return true;
