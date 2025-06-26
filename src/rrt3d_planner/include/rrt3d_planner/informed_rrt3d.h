@@ -112,8 +112,13 @@ namespace rrt3d_planner
         double safety_radius_;
         double best_cost_;
         bool adaptive_radius_;
-        double safety_radius_;
         int lethal_cost_threshold_;
+        double octomap_resolution_;
+        bool treat_unknown_as_free_;
+        double cost_propagation_threshold_;
+        bool path_smoothing_;
+        size_t kd_tree_rebuild_interval_;
+        double collision_check_resolution_;
 
         std::default_random_engine rng_;
 

@@ -46,6 +46,12 @@ namespace rrt3d_planner
     nh_.param("adaptive_radius", adaptive_radius_, true); // default = true
     nh_.param("safety_radius", safety_radius_, 0.3);
     nh_.param("lethal_cost_threshold", lethal_cost_threshold_, 50);
+    nh_.param("kd_tree_rebuild_interval", kd_tree_rebuild_interval_, 50);
+    nh_.param("octomap_resolution", octomap_resolution_, 0.1);
+    nh_.param("treat_unknown_as_free", treat_unknown_as_free_, true);
+    nh_.param("cost_propagation_threshold", cost_propagation_threshold_, 1e-6);
+    nh_.param("path_smoothing", path_smoothing_, true);
+    nh_.param("collision_check_resolution", collision_check_resolution_, 0.05);
 
     cloud_sub_ = nh_.subscribe<sensor_msgs::PointCloud2>(
         "/rtabmap/cloud_map", 1, &InformedRRT3D::cloudCallback, this);
@@ -563,7 +569,7 @@ namespace rrt3d_planner
 
   bool InformedRRT3D::collisionFree(const std::shared_ptr<Node> &from, const std::shared_ptr<Node> &to)
   {
-    int steps = static_cast<int>(distance(from, to) / (octomap_resolution_ * 0.5));
+    int steps = static_cast<int>(distance(from, to) / (collision_check_resolution_));
     for (int i = 0; i <= steps; ++i)
     {
       double x = from->x + (to->x - from->x) * i / steps;
