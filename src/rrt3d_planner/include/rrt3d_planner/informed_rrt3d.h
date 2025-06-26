@@ -106,6 +106,7 @@ namespace rrt3d_planner
         double best_cost_;
         bool adaptive_radius_;
         double safety_radius_;
+        int lethal_cost_threshold_;
 
         std::default_random_engine rng_;
 

@@ -45,6 +45,7 @@ namespace rrt3d_planner
     nh_.param("informed_sampling", informed_sampling_, true);
     nh_.param("adaptive_radius", adaptive_radius_, true); // default = true
     nh_.param("safety_radius", safety_radius_, 0.3);
+    nh_.param("lethal_cost_threshold", lethal_cost_threshold_, 50);
 
     tree_pub_ = nh_.advertise<visualization_msgs::MarkerArray>("rrt_tree", 1);
     path_pub_ = nh_.advertise<nav_msgs::Path>("rrt_path_3d", 1);
@@ -452,15 +453,20 @@ namespace rrt3d_planner
     return std::sqrt(dx * dx + dy * dy + dz * dz) + yaw_weight_ * std::abs(dyaw);
   }
 
-  bool InformedRRT3D::isFree(double x, double y, double z)
+  bool InformedRRT3D::isFree2D(double x, double y)
   {
-    if (!octree_)
+    if (!costmap_)
       return true;
-    octomap::point3d pt(x, y, z);
-    octomap::OcTreeNode *node = octree_->search(pt);
-    if (!node)
-      return true;
-    return !octree_->isNodeOccupied(node);
+
+    unsigned int mx, my;
+
+    if (!costmap_->worldToMap(x, y, mx, my))
+      return false; // Out of bounds
+
+    unsigned char cost = costmap_->getCost(mx, my);
+
+    // Threshold: 50 = moderately inflated; change if needed
+    return cost < lethal_cost_threshold_;
   }
 
   bool InformedRRT3D::isFree3D(double x, double y, double z)
@@ -489,8 +495,14 @@ namespace rrt3d_planner
     return true;
   }
 
-  bool InformedRRT3D::isValid(Node *node)
+  bool InformedRRT3D::isValid(const std::shared_ptr<Node> &node)
   {
+    if (!isFree2D(node->x, node->y))
+      return false;
+
+    if (node->z < min_altitude_ || node->z > max_altitude_)
+      return false;
+
     return isFree3D(node->x, node->y, node->z);
   }
 
