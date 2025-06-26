@@ -117,6 +117,7 @@ namespace rrt3d_planner
         void rewireTree(const std::shared_ptr<Node> &new_node,
                         const std::vector<std::shared_ptr<Node>> &near_nodes);
         void propagateCostToChildren(const std::shared_ptr<Node> &node);
+        std::vector<std::shared_ptr<Node>> smoothPath(const std::vector<std::shared_ptr<Node>> &path);
         nav_msgs::Path createPathMsg(const std::vector<std::shared_ptr<Node>> &path, const std::string &frame_id);
         std::vector<std::shared_ptr<Node>> extractPath(const std::shared_ptr<Node> &goal);
     };

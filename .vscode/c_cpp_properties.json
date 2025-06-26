@@ -1,19 +1,19 @@
 {
   "configurations": [
     {
-      "name": "ROS Noetic",
+      "name": "windows-clang-x64",
       "includePath": [
-        "${workspaceFolder}/devel/include",
+        "${workspaceFolder}/**",
+        "${workspaceFolder}/devel/include/**",
         "${workspaceFolder}/src/**",
-        "/opt/ros/noetic/include",
-        "/usr/include",
-        "/usr/include/eigen3"
+        "/opt/ros/noetic/include/**",
+        "/usr/include/**"
       ],
       "defines": [],
       "compilerPath": "/usr/bin/g++",
       "cStandard": "c11",
       "cppStandard": "c++14",
-      "intelliSenseMode": "linux-gcc-x64"
+      "intelliSenseMode": "windows-clang-x64"
     }
   ],
   "version": 4

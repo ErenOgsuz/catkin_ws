@@ -43,6 +43,7 @@ namespace rrt3d_planner
     nh_.param("nominal_speed", nominal_speed_, 1.0); // m/s
     nh_.param("yaw_weight", yaw_weight_, 0.3);       // cost function
     nh_.param("informed_sampling", informed_sampling_, true);
+    nh_.param("adaptive_radius", adaptive_radius_, true); // default = true
 
     tree_pub_ = nh_.advertise<visualization_msgs::MarkerArray>("rrt_tree", 1);
     path_pub_ = nh_.advertise<nav_msgs::Path>("rrt_path_3d", 1);
@@ -169,19 +170,29 @@ namespace rrt3d_planner
       }
     }
 
-    std::vector<Node *> path = extractPath(goal_node);
+    std::vector<std::shared_ptr<Node>> path = extractPath(goal_node);
     if (path.empty())
       return false;
 
-    publishPath(path, start.header.frame_id);
+    // Smooth the path
+    std::vector<std::shared_ptr<Node>> smoothed_path = smoothPath(path);
+
+    // Publish and convert
+    publishPath(smoothed_path, start.header.frame_id);
+
     visualizeTree();
-    for (const auto &n : path)
+    for (const auto &n : smoothed_path)
     {
       geometry_msgs::PoseStamped pose;
       pose.header = start.header;
       pose.pose.position.x = n->x;
       pose.pose.position.y = n->y;
       pose.pose.position.z = n->z;
+
+      // Convert yaw to quaternion
+      tf::Quaternion q = tf::createQuaternionFromRPY(0, 0, n->yaw);
+      tf::quaternionTFToMsg(q, pose.pose.orientation);
+
       plan.push_back(pose);
     }
     return true;
@@ -304,12 +315,14 @@ namespace rrt3d_planner
 
   double InformedRRT3D::getRewireRadius() const
   {
-    if (nodes_.size() <= 1)
-      return rewire_radius_; // fallback
+    if (!adaptive_radius_ || nodes_.size() <= 1)
+      return rewire_radius_; // Use fixed radius if disabled or too small
 
-    double gamma = 2.0 * std::pow(1.0 + 1.0 / 3.0, 1.0 / 3.0);
-    double eta = std::pow(std::log(nodes_.size()) / nodes_.size(), 1.0 / 3.0);
-    return std::min(rewire_radius_, gamma * eta);
+    double n = static_cast<double>(nodes_.size());
+    double gamma = 2.0 * std::pow(1.0 + 1.0 / 3.0, 1.0 / 3.0); // 3D
+    double radius = gamma * std::pow(std::log(n) / n, 1.0 / 3.0);
+
+    return std::min(rewire_radius_, std::max(radius, step_size_)); // Clamp
   }
 
   void InformedRRT3D::rewireTree(const std::shared_ptr<Node> &new_node,
@@ -338,6 +351,42 @@ namespace rrt3d_planner
         propagateCostToChildren(near_node);
       }
     }
+  }
+
+  std::vector<std::shared_ptr<Node>> InformedRRT3D::smoothPath(const std::vector<std::shared_ptr<Node>> &path)
+  {
+    if (path.size() < 3)
+      return path;
+
+    std::vector<std::shared_ptr<Node>> smoothed;
+    smoothed.push_back(path.front());
+
+    size_t i = 0;
+    while (i < path.size() - 1)
+    {
+      size_t j = path.size() - 1;
+      bool shortcut_found = false;
+
+      while (j > i + 1)
+      {
+        if (collisionFree(path[i], path[j]))
+        {
+          smoothed.push_back(path[j]);
+          i = j;
+          shortcut_found = true;
+          break;
+        }
+        --j;
+      }
+
+      if (!shortcut_found)
+      {
+        ++i;
+        smoothed.push_back(path[i]);
+      }
+    }
+
+    return smoothed;
   }
 
   void InformedRRT3D::propagateCostToChildren(const std::shared_ptr<Node> &node)
