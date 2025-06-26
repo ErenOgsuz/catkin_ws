@@ -6,9 +6,6 @@
 #include <angles/angles.h>
 #include <geometry_msgs/PointStamped.h>
 #include <tf/transform_datatypes.h>
-#include <pcl_conversions/pcl_conversions.h>
-#include <pcl/point_types.h>
-#include <pcl_ros/point_cloud.h>
 #include <random>
 
 PLUGINLIB_EXPORT_CLASS(rrt3d_planner::InformedRRT3D, nav_core::BaseGlobalPlanner)
@@ -119,7 +116,7 @@ namespace rrt3d_planner
 
     for (int i = 0; i < 1000; ++i)
     {
-      Node *rand;
+      std::shared_ptr<Node> rand;
       if (informed_sampling_ && best_cost_ < std::numeric_limits<double>::infinity())
         rand = sampleInformedNode(start_node, goal_node, best_cost_);
       else
@@ -146,7 +143,8 @@ namespace rrt3d_planner
       std::shared_ptr<Node> nearest = nodes_[nearest_idx];
 
       // Add new node
-      Node *new_node = steer(nearest, rand);
+      std::shared_ptr<Node> new_node = steer(nearest, rand_node);
+
       if (isValid(new_node) && collisionFree(nearest, new_node))
       {
         new_node->parent = nearest;
@@ -216,16 +214,16 @@ namespace rrt3d_planner
     return true;
   }
 
-  Node *InformedRRT3D::sampleRandomNode()
+  std::shared_ptr<Node> InformedRRT3D::sampleRandomNode()
   {
     double x = origin_x_ + ((double)rand() / RAND_MAX) * costmap_->getSizeInMetersX();
     double y = origin_y_ + ((double)rand() / RAND_MAX) * costmap_->getSizeInMetersY();
     double z = min_altitude_ + ((double)rand() / RAND_MAX) * (max_altitude_ - min_altitude_);
     double yaw = ((double)rand() / RAND_MAX) * 2 * M_PI - M_PI;
-    return new Node(x, y, z, yaw);
+    return std::make_shared<Node>(x, y, z, yaw);
   }
 
-  Node *InformedRRT3D::sampleInformedNode(Node *start, Node *goal, double c_best)
+  std::shared_ptr<Node> InformedRRT3D::sampleInformedNode(Node *start, Node *goal, double c_best)
   {
     double c_min = distance(start, goal);
     if (c_best == std::numeric_limits<double>::infinity() || c_best <= c_min)
@@ -269,54 +267,7 @@ namespace rrt3d_planner
 
     double yaw = ((double)rand() / RAND_MAX) * 2 * M_PI - M_PI;
 
-    return new Node(sample.x(), sample.y(), sample.z(), yaw);
-  }
-
-  Node *InformedRRT3D::sampleInformedNode(Node *start, Node *goal, double c_best)
-  {
-    double c_min = distance(start, goal);
-    if (c_best == std::numeric_limits<double>::infinity() || c_best <= c_min)
-      return sampleRandomNode(); // fallback to uniform sampling
-
-    // Ellipse parameters
-    double a = c_best / 2.0; // semi-major axis
-    double c = c_min / 2.0;
-    double b = std::sqrt(a * a - c * c); // semi-minor axis
-
-    // Sample random point in unit ball
-    double phi = ((double)rand() / RAND_MAX) * 2 * M_PI;
-    double costheta = ((double)rand() / RAND_MAX) * 2.0 - 1.0;
-    double u = ((double)rand() / RAND_MAX);
-
-    double theta = std::acos(costheta);
-    double r = std::cbrt(u); // uniform volume
-
-    double x_ball = r * std::sin(theta) * std::cos(phi);
-    double y_ball = r * std::sin(theta) * std::sin(phi);
-    double z_ball = r * std::cos(theta);
-
-    // Transform unit ball to ellipsoid
-
-    Eigen::Vector3d start_pt(start->x, start->y, start->z);
-    Eigen::Vector3d goal_pt(goal->x, goal->y, goal->z);
-    Eigen::Vector3d center = (start_pt + goal_pt) / 2.0;
-    Eigen::Vector3d dir = (goal_pt - start_pt).normalized();
-
-    // Create basis using direction vector
-    Eigen::Matrix3d M;
-    Eigen::Vector3d z = dir;
-    Eigen::Vector3d x = z.unitOrthogonal(); // any vector orthogonal to z
-    Eigen::Vector3d y = z.cross(x);
-    M.col(0) = x;
-    M.col(1) = y;
-    M.col(2) = z;
-
-    Eigen::Vector3d D(b, b, a); // scale
-    Eigen::Vector3d sample = M * (D.asDiagonal() * Eigen::Vector3d(x_ball, y_ball, z_ball)) + center;
-
-    double yaw = ((double)rand() / RAND_MAX) * 2 * M_PI - M_PI;
-
-    return new Node(sample.x(), sample.y(), sample.z(), yaw);
+    return std::make_shared<Node>(sample.x(), sample.y(), sample.z(), yaw);
   }
 
   void InformedRRT3D::buildKDTree()
@@ -430,7 +381,7 @@ namespace rrt3d_planner
     return angle;
   }
 
-  Node *InformedRRT3D::steer(Node *from, Node *to)
+  std::shared_ptr<Node> InformedRRT3D::steer(const std::shared_ptr<Node> &from, const std::shared_ptr<Node> &to)
   {
     double dx = to->x - from->x;
     double dy = to->y - from->y;
@@ -452,15 +403,15 @@ namespace rrt3d_planner
       new_z = from->z + dz * scale;
     }
 
-    // Interpolate yaw (handling wrap-around)
+    // Interpolate yaw
     double dyaw = normalizeAngle(to->yaw - from->yaw);
     double yaw_step = std::min(dyaw, max_yaw_rate_ * (step_size_ / nominal_speed_));
     double new_yaw = normalizeAngle(from->yaw + yaw_step);
 
-    return new Node(new_x, new_y, new_z, new_yaw);
+    return std::make_shared<Node>(new_x, new_y, new_z, new_yaw);
   }
 
-  double InformedRRT3D::distance(Node *a, Node *b)
+  double InformedRRT3D::distance(const std::shared_ptr<Node> &a, const std::shared_ptr<Node> &b)
   {
     double dx = a->x - b->x;
     double dy = a->y - b->y;
@@ -497,14 +448,39 @@ namespace rrt3d_planner
     input.point.y = y;
     input.point.z = z;
 
-    try
+    // Try transforming with retries
+    bool success = false;
+    const int max_retries = 3;
+    const ros::Duration retry_delay(0.05);
+
+    for (int attempt = 0; attempt < max_retries; ++attempt)
     {
-      tf_buffer_.transform(input, transformed, octomap_frame_, ros::Duration(0.1));
+      try
+      {
+        transformed = tf_buffer_.transform(input, octomap_frame_, ros::Duration(0.2));
+        success = true;
+        break;
+      }
+      catch (tf2::LookupException &ex)
+      {
+        ROS_WARN_THROTTLE(2.0, "TF LookupException (attempt %d): %s", attempt + 1, ex.what());
+      }
+      catch (tf2::ConnectivityException &ex)
+      {
+        ROS_WARN_THROTTLE(2.0, "TF ConnectivityException (attempt %d): %s", attempt + 1, ex.what());
+      }
+      catch (tf2::ExtrapolationException &ex)
+      {
+        ROS_WARN_THROTTLE(2.0, "TF ExtrapolationException (attempt %d): %s", attempt + 1, ex.what());
+      }
+      ros::Duration(retry_delay).sleep();
     }
-    catch (tf2::TransformException &ex)
+
+    if (!success)
     {
-      ROS_WARN_THROTTLE(2.0, "TF transform failed: %s", ex.what());
-      return false;
+      ROS_ERROR_THROTTLE(2.0, "TF transform to frame '%s' failed after %d attempts",
+                         octomap_frame_.c_str(), max_retries);
+      return false; // treat as occupied
     }
 
     std::vector<std::tuple<double, double, double>> offsets = {
@@ -542,7 +518,7 @@ namespace rrt3d_planner
     return isFree3D(node->x, node->y, node->z);
   }
 
-  bool InformedRRT3D::collisionFree(Node *from, Node *to)
+  bool InformedRRT3D::collisionFree(const std::shared_ptr<Node> &from, const std::shared_ptr<Node> &to)
   {
     int steps = static_cast<int>(distance(from, to) / (octomap_resolution_ * 0.5));
     for (int i = 0; i <= steps; ++i)
@@ -556,10 +532,10 @@ namespace rrt3d_planner
     return true;
   }
 
-  std::vector<Node *> InformedRRT3D::extractPath(Node *goal)
+  std::vector<std::shared_ptr<Node>> InformedRRT3D::extractPath(const std::shared_ptr<Node> &goal)
   {
-    std::vector<Node *> path;
-    for (Node *n = goal; n != nullptr; n = n->parent)
+    std::vector<std::shared_ptr<Node>> path;
+    for (auto n = goal; n != nullptr; n = n->parent)
     {
       path.push_back(n);
     }

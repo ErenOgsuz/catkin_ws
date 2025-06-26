@@ -54,7 +54,6 @@ namespace rrt3d_planner
     struct Node
     {
         double x, y, z, yaw;
-        double yaw;
         double cost;
         std::shared_ptr<Node> parent;
         std::vector<std::shared_ptr<Node>> children;
@@ -129,6 +128,7 @@ namespace rrt3d_planner
                         const std::vector<std::shared_ptr<Node>> &near_nodes);
         void propagateCostToChildren(const std::shared_ptr<Node> &node);
         void cloudCallback(const sensor_msgs::PointCloud2::ConstPtr &msg);
+        void publishPath(const std::vector<std::shared_ptr<Node>> &path, const std::string &frame_id);
 
         std::vector<std::shared_ptr<Node>> smoothPath(const std::vector<std::shared_ptr<Node>> &path);
         nav_msgs::Path createPathMsg(const std::vector<std::shared_ptr<Node>> &path, const std::string &frame_id);
