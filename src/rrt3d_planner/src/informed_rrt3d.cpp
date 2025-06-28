@@ -190,7 +190,7 @@ namespace rrt3d_planner
       double out_dist_sqr;
       nanoflann::KNNResultSet<double> resultSet(1);
       resultSet.init(&nearest_idx, &out_dist_sqr);
-      kd_tree_->findNeighbors(resultSet, &query_pt[0], nanoflann::SearchParams());
+      kd_tree_->findNeighbors(resultSet, &query_pt[0], nanoflann::SearchParameters());
 
       std::shared_ptr<Node> nearest = nodes_[nearest_idx];
 
@@ -210,9 +210,9 @@ namespace rrt3d_planner
         std::vector<std::shared_ptr<Node>> near_nodes;
 
         // Use KD-tree to find neighbors
-        std::vector<std::pair<size_t, double>> ret_matches;
-        nanoflann::SearchParams params;
-        kd_tree_->radiusSearch(&query_pt[0], radius * radius, ret_matches, params);
+        nanoflann::SearchParameters params;
+        std::vector<nanoflann::ResultItem<uint32_t, double>> ret_matches;
+        kd_tree_->radiusSearch(query_pt.data(), radius, ret_matches, params);
 
         for (const auto &match : ret_matches)
         {

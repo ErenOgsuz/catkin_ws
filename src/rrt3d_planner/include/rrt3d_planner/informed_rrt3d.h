@@ -81,7 +81,7 @@ namespace rrt3d_planner
             >;
 
         PointCloud point_cloud_;          // Wrapper around nodes_
-        std::unique_ptr<KDTree> kd_tree_; // The actual KD-tree
+        std::shared_ptr<KDTree> kd_tree_; 
 
         size_t last_kdtree_build_size_ = 0;    // Track when to rebuild
         size_t kd_tree_rebuild_interval_ = 50; // Rebuild every N new nodes
