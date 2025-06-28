@@ -10,6 +10,8 @@
 #include <nav_msgs/Path.h>
 #include <octomap_msgs/Octomap.h>
 #include <octomap/OcTree.h>
+#include <octomap/AbstractOcTree.h>
+#include <octomap/octomap.h>  // For OcTree
 #include <visualization_msgs/MarkerArray.h>
 #include <visualization_msgs/Marker.h>
 #include <tf2_ros/transform_listener.h>
@@ -109,7 +111,13 @@ namespace rrt3d_planner
         double max_altitude_;
         double min_altitude_;
         double map_resolution_;
+        double origin_x_;
+        double origin_y_;
         double safety_radius_;
+        bool consider_orientation_;
+        double max_yaw_rate_;
+        double nominal_speed_;
+        double yaw_weight_;
         double best_cost_;
         bool adaptive_radius_;
         int lethal_cost_threshold_;
@@ -122,9 +130,8 @@ namespace rrt3d_planner
 
         std::default_random_engine rng_;
 
-        void octomapCallback(const octomap_msgs::Octomap &msg);
+        void octomapCallback(const octomap_msgs::OctomapConstPtr &msg);
         bool isFree3D(double x, double y, double z);
-        std::shared_ptr<Node> steer(const std::shared_ptr<Node> &from, const std::shared_ptr<Node> &to);
         bool collisionFree(const std::shared_ptr<Node> &from, const std::shared_ptr<Node> &to);
         double distance(const std::shared_ptr<Node> &n1, const std::shared_ptr<Node> &n2);
         void visualizeTree();
@@ -134,7 +141,15 @@ namespace rrt3d_planner
         void propagateCostToChildren(const std::shared_ptr<Node> &node);
         void cloudCallback(const sensor_msgs::PointCloud2::ConstPtr &msg);
         void publishPath(const std::vector<std::shared_ptr<Node>> &path, const std::string &frame_id);
-
+        void buildKDTree();
+        double normalizeAngle(double angle);
+        bool isFree2D(double x, double y);
+        bool isValid(const std::shared_ptr<Node> &node);
+        void publishPath(const std::vector<Node *> &path, const std::string &frame_id);
+        
+        std::shared_ptr<Node> steer(const std::shared_ptr<Node> &from, const std::shared_ptr<Node> &to);
+        std::shared_ptr<Node> sampleRandomNode();
+        std::shared_ptr<Node> sampleInformedNode(const std::shared_ptr<Node> &start, const std::shared_ptr<Node> &goal, double c_best);
         std::vector<std::shared_ptr<Node>> smoothPath(const std::vector<std::shared_ptr<Node>> &path);
         nav_msgs::Path createPathMsg(const std::vector<std::shared_ptr<Node>> &path, const std::string &frame_id);
         std::vector<std::shared_ptr<Node>> extractPath(const std::shared_ptr<Node> &goal);

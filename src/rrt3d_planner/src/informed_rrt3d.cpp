@@ -6,6 +6,8 @@
 #include <angles/angles.h>
 #include <geometry_msgs/PointStamped.h>
 #include <tf/transform_datatypes.h>
+#include <octomap_msgs/conversions.h>
+#include "nanoflann.hpp"
 #include <random>
 
 PLUGINLIB_EXPORT_CLASS(rrt3d_planner::InformedRRT3D, nav_core::BaseGlobalPlanner)
@@ -13,12 +15,12 @@ PLUGINLIB_EXPORT_CLASS(rrt3d_planner::InformedRRT3D, nav_core::BaseGlobalPlanner
 namespace rrt3d_planner
 {
 
-  InformedRRT3D::InformedRRT3D()
+  InformedRRT3D::InformedRRT3D() : tf_listener_(tf_buffer_) 
   {
     best_cost_ = std::numeric_limits<double>::infinity();
   }
 
-  InformedRRT3D::InformedRRT3D(std::string name, costmap_2d::Costmap2DROS *costmap_ros)
+  InformedRRT3D::InformedRRT3D(std::string name, costmap_2d::Costmap2DROS *costmap_ros) : tf_listener_(tf_buffer_)
   {
     best_cost_ = std::numeric_limits<double>::infinity();
     initialize(name, costmap_ros);
@@ -46,7 +48,7 @@ namespace rrt3d_planner
     nh_.param("adaptive_radius", adaptive_radius_, true); // default = true
     nh_.param("safety_radius", safety_radius_, 0.3);
     nh_.param("lethal_cost_threshold", lethal_cost_threshold_, 50);
-    nh_.param("kd_tree_rebuild_interval", kd_tree_rebuild_interval_, 50);
+    // nh_.param("kd_tree_rebuild_interval", kd_tree_rebuild_interval_, 50);
     nh_.param("octomap_resolution", octomap_resolution_, 0.1);
     nh_.param("treat_unknown_as_free", treat_unknown_as_free_, true);
     nh_.param("cost_propagation_threshold", cost_propagation_threshold_, 1e-6);
@@ -111,7 +113,7 @@ namespace rrt3d_planner
     }
 
     // Load octree
-    octomap::AbstractOcTree *tree = octomap_msgs::binaryMsgToMap(*msg);
+    octomap::AbstractOcTree *tree = octomap_msgs::msgToMap(*msg);
     if (tree)
     {
       std::shared_ptr<octomap::OcTree> converted(dynamic_cast<octomap::OcTree *>(tree));
@@ -131,6 +133,7 @@ namespace rrt3d_planner
     {
       ROS_ERROR("Failed to deserialize Octomap message.");
     }
+    return;
   }
 
   bool InformedRRT3D::makePlan(const geometry_msgs::PoseStamped &start,
@@ -192,7 +195,7 @@ namespace rrt3d_planner
       std::shared_ptr<Node> nearest = nodes_[nearest_idx];
 
       // Add new node
-      std::shared_ptr<Node> new_node = steer(nearest, rand_node);
+      std::shared_ptr<Node> new_node = steer(nearest, rand);
 
       if (isValid(new_node) && collisionFree(nearest, new_node))
       {
@@ -272,7 +275,7 @@ namespace rrt3d_planner
     return std::make_shared<Node>(x, y, z, yaw);
   }
 
-  std::shared_ptr<Node> InformedRRT3D::sampleInformedNode(Node *start, Node *goal, double c_best)
+  std::shared_ptr<Node> InformedRRT3D::sampleInformedNode(const std::shared_ptr<Node> &start, const std::shared_ptr<Node> &goal, double c_best)
   {
     double c_min = distance(start, goal);
     if (c_best == std::numeric_limits<double>::infinity() || c_best <= c_min)
