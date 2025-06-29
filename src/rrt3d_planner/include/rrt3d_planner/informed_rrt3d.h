@@ -28,6 +28,17 @@
 
 namespace rrt3d_planner
 {
+    struct Node
+    {
+        double x, y, z, yaw;
+        double cost;
+        std::shared_ptr<Node> parent;
+        std::vector<std::shared_ptr<Node>> children;
+
+        Node(double x_, double y_, double z_ = 0.0, double yaw_ = 0.0)
+            : x(x_), y(y_), z(z_), yaw(yaw_), cost(0.0), parent(nullptr) {}
+    };
+
     struct PointCloud
     {
         const std::vector<std::shared_ptr<Node>> *nodes;
@@ -51,17 +62,6 @@ namespace rrt3d_planner
         // Not implementing bounding box
         template <class BBOX>
         bool kdtree_get_bbox(BBOX &) const { return false; }
-    };
-
-    struct Node
-    {
-        double x, y, z, yaw;
-        double cost;
-        std::shared_ptr<Node> parent;
-        std::vector<std::shared_ptr<Node>> children;
-
-        Node(double x_, double y_, double z_ = 0.0, double yaw_ = 0.0)
-            : x(x_), y(y_), z(z_), yaw(yaw_), cost(0.0), parent(nullptr) {}
     };
 
     class InformedRRT3D : public nav_core::BaseGlobalPlanner
@@ -125,7 +125,7 @@ namespace rrt3d_planner
         bool treat_unknown_as_free_;
         double cost_propagation_threshold_;
         bool path_smoothing_;
-        size_t kd_tree_rebuild_interval_;
+        // size_t kd_tree_rebuild_interval_;
         double collision_check_resolution_;
 
         std::default_random_engine rng_;

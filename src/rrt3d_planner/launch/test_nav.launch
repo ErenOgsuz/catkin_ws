@@ -1,0 +1,20 @@
+<launch>
+  <!-- Load a simple static map -->
+  <arg name="map" default="$(find turtlebot3_navigation)/maps/map.yaml" />
+  <node name="map_server" pkg="map_server" type="map_server" args="$(arg map)" />
+
+  <!-- tf: publish fixed map->base_link -->
+  <node pkg="tf" type="static_transform_publisher" name="base_tf"
+        args="0 0 0 0 0 0 map base_link 100" />
+
+  <!-- Move base with our plugin -->
+  <node name="move_base" pkg="move_base" type="move_base" output="screen">
+    <rosparam file="$(find rrt3d_planner)/config/costmap_params.yaml" command="load"/>
+    <rosparam>
+      base_global_planner: "rrt3d_planner/InformedRRT3D"
+    </rosparam>
+  </node>
+
+  <!-- RViz -->
+  <node pkg="rviz" type="rviz" name="rviz" args="-d $(find rrt3d_planner)/rviz/test_config.rviz"/>
+</launch>

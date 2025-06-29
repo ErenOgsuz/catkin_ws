@@ -5,7 +5,7 @@
 # This file includes the relevant testing commands required for 
 # testing this directory and lists subdirectories to be tested as well.
 subdirs("gtest")
-subdirs("rrt3d_planner")
 subdirs("tree_visualizer")
+subdirs("rrt3d_planner")
 subdirs("ws_kinematics")
 subdirs("ws_odometry")

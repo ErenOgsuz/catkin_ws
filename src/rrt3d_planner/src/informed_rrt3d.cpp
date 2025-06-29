@@ -7,7 +7,6 @@
 #include <geometry_msgs/PointStamped.h>
 #include <tf/transform_datatypes.h>
 #include <octomap_msgs/conversions.h>
-#include "nanoflann.hpp"
 #include <random>
 
 PLUGINLIB_EXPORT_CLASS(rrt3d_planner::InformedRRT3D, nav_core::BaseGlobalPlanner)

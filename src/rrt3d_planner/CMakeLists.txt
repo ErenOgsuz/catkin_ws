@@ -25,12 +25,14 @@ catkin_package(
   CATKIN_DEPENDS roscpp nav_core pluginlib costmap_2d geometry_msgs nav_msgs tf tf2 tf2_ros tf2_geometry_msgs sensor_msgs visualization_msgs octomap_msgs pcl_ros pcl_conversions
 )
 
+add_compile_options(-std=c++17)
+
 find_package(octomap REQUIRED)
 
 catkin_package(
   INCLUDE_DIRS include
-  LIBRARIES informed_rrt3d_node
-  CATKIN_DEPENDS roscpp nav_core costmap_2d geometry_msgs nav_msgs octomap_msgs tf2_ros tf2_geometry_msgs visualization_msgs
+  LIBRARIES rrt3d_planner
+  CATKIN_DEPENDS roscpp nav_core pluginlib costmap_2d geometry_msgs nav_msgs octomap_msgs tf2_ros tf2_geometry_msgs visualization_msgs
   DEPENDS octomap
 )
 
@@ -40,16 +42,16 @@ include_directories(
   ${OCTOMAP_INCLUDE_DIRS}
 )
 
-add_library(informed_rrt3d_node
+add_library(rrt3d_planner
   src/informed_rrt3d.cpp
 )
 
-target_link_libraries(informed_rrt3d_node
+target_link_libraries(rrt3d_planner
   ${catkin_LIBRARIES}
   ${OCTOMAP_LIBRARIES}
 )
 
-install(TARGETS informed_rrt3d_node
+install(TARGETS rrt3d_planner
   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
 )
 

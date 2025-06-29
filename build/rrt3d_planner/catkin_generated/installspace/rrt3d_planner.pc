@@ -2,7 +2,7 @@ prefix=/home/ereno/catkin_ws/install
 
 Name: rrt3d_planner
 Description: Description of rrt3d_planner
-Version: 0.0.0
-Cflags: 
-Libs: -L${prefix}/lib 
-Requires: 
+Version: 0.0.1
+Cflags: -I${prefix}/include
+Libs: -L${prefix}/lib -lrrt3d_planner
+Requires: roscpp nav_core pluginlib costmap_2d geometry_msgs nav_msgs octomap_msgs tf2_ros tf2_geometry_msgs visualization_msgs

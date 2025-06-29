@@ -27,5 +27,6 @@
 
   <export>
     <nav_core plugin="${prefix}/informed_rrt3d_plugin.xml"/>
+    <pluginlib plugin="${prefix}/informed_rrt3d_plugin.xml"/>
   </export>
 </package>
