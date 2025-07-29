@@ -268,7 +268,7 @@ if __name__ == '__main__':
 
         if not args.local:
             # environment at generation time
-            CMAKE_PREFIX_PATH = r'/home/ereno/catkin_ws/devel;/opt/ros/noetic'.split(';')
+            CMAKE_PREFIX_PATH = r'/home/ereno/nav_stack/devel;/home/ereno/catkin_ws/devel;/opt/ros/noetic;/usr/local'.split(';')
         else:
             # don't consider any other prefix path than this one
             CMAKE_PREFIX_PATH = []

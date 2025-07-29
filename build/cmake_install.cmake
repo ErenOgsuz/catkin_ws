@@ -146,9 +146,9 @@ endif()
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for each subdirectory.
   include("/home/ereno/catkin_ws/build/gtest/cmake_install.cmake")
+  include("/home/ereno/catkin_ws/build/LIO-SAM/cmake_install.cmake")
   include("/home/ereno/catkin_ws/build/tree_visualizer/cmake_install.cmake")
   include("/home/ereno/catkin_ws/build/rrt3d_planner/cmake_install.cmake")
-  include("/home/ereno/catkin_ws/build/ws_kinematics/cmake_install.cmake")
   include("/home/ereno/catkin_ws/build/ws_odometry/cmake_install.cmake")
 
 endif()

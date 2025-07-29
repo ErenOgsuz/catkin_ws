@@ -121,5 +121,15 @@
     "xstring": "cpp",
     "xtr1common": "cpp",
     "xutility": "cpp"
-  }
+  },
+  "python.autoComplete.extraPaths": [
+    "/home/ereno/nav_stack/devel/lib/python3/dist-packages",
+    "/home/ereno/catkin_ws/devel/lib/python3/dist-packages",
+    "/opt/ros/noetic/lib/python3/dist-packages"
+  ],
+  "python.analysis.extraPaths": [
+    "/home/ereno/nav_stack/devel/lib/python3/dist-packages",
+    "/home/ereno/catkin_ws/devel/lib/python3/dist-packages",
+    "/opt/ros/noetic/lib/python3/dist-packages"
+  ]
 }
